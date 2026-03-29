@@ -2,15 +2,16 @@ require 'pusher-signature'
 require 'digest/md5'
 require 'multi_json'
 
-module Pusher
+module Sockudo
   class Request
     attr_reader :body, :params
 
-    def initialize(client, verb, uri, params, body = nil)
+    def initialize(client, verb, uri, params, body = nil, extra_headers = {})
       @client, @verb, @uri = client, verb, uri
       @head = {
-        'X-Pusher-Library' => 'pusher-http-ruby ' + Pusher::VERSION
+        'X-Pusher-Library' => 'sockudo-http-ruby ' + Sockudo::VERSION
       }
+      @head.merge!(extra_headers) if extra_headers && !extra_headers.empty?
 
       @body = body
       if body
@@ -18,7 +19,7 @@ module Pusher
         @head['Content-Type'] = 'application/json'
       end
 
-      request = Pusher::Signature::Request.new(verb.to_s.upcase, uri.path, params)
+      request = Sockudo::Signature::Request.new(verb.to_s.upcase, uri.path, params)
       request.sign(client.authentication_token)
       @params = request.signed_params
     end
@@ -30,7 +31,7 @@ module Pusher
         response = http.request(@verb, @uri, @params, @body, @head)
       rescue HTTPClient::BadResponseError, HTTPClient::TimeoutError,
              SocketError, Errno::ECONNREFUSED => e
-        error = Pusher::HTTPError.new("#{e.message} (#{e.class})")
+        error = Sockudo::HTTPError.new("#{e.message} (#{e.class})")
         error.original_error = e
         raise error
       end
@@ -65,8 +66,8 @@ module Pusher
           end
         }
         http.errback { |e|
-          message = "Network error connecting to pusher (#{http.error})"
-          Pusher.logger.debug(message)
+          message = "Network error connecting to sockudo (#{http.error})"
+          Sockudo.logger.debug(message)
           df.fail(Error.new(message))
         }
 

@@ -1,12 +1,12 @@
 require 'multi_json'
 require 'openssl'
 
-module Pusher
+module Sockudo
   # Used to parse and authenticate WebHooks
   #
   # @example Sinatra
   #   post '/webhooks' do
-  #     webhook = Pusher::WebHook.new(request)
+  #     webhook = Sockudo::WebHook.new(request)
   #     if webhook.valid?
   #       webhook.events.each do |event|
   #         case event["name"]
@@ -28,7 +28,7 @@ module Pusher
     # Provide either a Rack::Request or a Hash containing :key, :signature,
     # :body, and :content_type (optional)
     #
-    def initialize(request, client = Pusher)
+    def initialize(request, client = Sockudo)
       @client = client
       # For Rack::Request and ActionDispatch::Request
       if request.respond_to?(:env) && request.respond_to?(:content_type)
@@ -49,7 +49,7 @@ module Pusher
     # matches the configured key & secret. In the case that the webhook is
     # invalid, the reason is logged
     #
-    # @param extra_tokens [Hash] If you have extra tokens for your Pusher app, you can specify them so that they're used to attempt validation.
+    # @param extra_tokens [Hash] If you have extra tokens for your Sockudo app, you can specify them so that they're used to attempt validation.
     #
     def valid?(extra_tokens = nil)
       extra_tokens = [extra_tokens] if extra_tokens.kind_of?(Hash)
@@ -60,7 +60,7 @@ module Pusher
           return check_signature(token[:secret]) if @key == token[:key]
         end
       end
-      Pusher.logger.warn "Received webhook with unknown key: #{key}"
+      Sockudo.logger.warn "Received webhook with unknown key: #{key}"
       return false
     end
 
@@ -70,7 +70,7 @@ module Pusher
       data["events"]
     end
 
-    # The time at which the WebHook was initially triggered by Pusher, i.e.
+    # The time at which the WebHook was initially triggered by Sockudo, i.e.
     # when the event occurred
     #
     # @return [Time]
@@ -102,7 +102,7 @@ module Pusher
       if @signature == expected
         return true
       else
-        Pusher.logger.warn "Received WebHook with invalid signature: got #{@signature}, expected #{expected}"
+        Sockudo.logger.warn "Received WebHook with invalid signature: got #{@signature}, expected #{expected}"
         return false
       end
     end

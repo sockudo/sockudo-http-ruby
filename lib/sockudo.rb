@@ -1,19 +1,20 @@
 autoload 'Logger', 'logger'
+require 'securerandom'
 require 'uri'
 require 'forwardable'
 
-require 'pusher/utils'
-require 'pusher/client'
+require 'sockudo/utils'
+require 'sockudo/client'
 
 # Used for configuring API credentials and creating Channel objects
 #
-module Pusher
+module Sockudo
   # All errors descend from this class so they can be easily rescued
   #
   # @example
   #   begin
-  #     Pusher.trigger('channel_name', 'event_name, {:some => 'data'})
-  #   rescue Pusher::Error => e
+  #     Sockudo.trigger('channel_name', 'event_name, {:some => 'data'})
+  #   rescue Sockudo::Error => e
   #     # Do something on error
   #   end
   class Error < RuntimeError; end
@@ -43,6 +44,13 @@ module Pusher
     def_delegators :default_client, :authenticate, :webhook, :channel, :[]
     def_delegators :default_client, :notify
 
+    # Generate a unique idempotency key (UUID v4) for use with trigger methods.
+    #
+    # @return [String] A UUID string
+    def generate_idempotency_key
+      SecureRandom.uuid
+    end
+
     attr_writer :logger
 
     def logger
@@ -55,15 +63,15 @@ module Pusher
 
     def default_client
       @default_client ||= begin
-        cli = Pusher::Client
-        ENV['PUSHER_URL'] ? cli.from_env : cli.new
+        cli = Sockudo::Client
+        ENV['SOCKUDO_URL'] ? cli.from_env : cli.new
       end
     end
   end
 end
 
-require 'pusher/version'
-require 'pusher/channel'
-require 'pusher/request'
-require 'pusher/resource'
-require 'pusher/webhook'
+require 'sockudo/version'
+require 'sockudo/channel'
+require 'sockudo/request'
+require 'sockudo/resource'
+require 'sockudo/webhook'

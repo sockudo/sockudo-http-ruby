@@ -1,20 +1,20 @@
 require 'rubygems'
-require 'pusher'
+require 'sockudo'
 require 'eventmachine'
 require 'em-http-request'
 
 # To get these values:
-# - Go to https://app.pusherapp.com/
+# - Go to your Sockudo dashboard
 # - Click on Choose App.
 # - Click on one of your apps
 # - Click API Access
-Pusher.app_id = 'your_app_id'
-Pusher.key = 'your_key'
-Pusher.secret = 'your_secret'
+Sockudo.app_id = 'your_app_id'
+Sockudo.key = 'your_key'
+Sockudo.secret = 'your_secret'
 
 
 EM.run {
-  deferrable = Pusher['test_channel'].trigger_async('my_event', 'hi')
+  deferrable = Sockudo['test_channel'].trigger_async('my_event', 'hi')
 
   deferrable.callback { # called on success
     puts "Message sent successfully."

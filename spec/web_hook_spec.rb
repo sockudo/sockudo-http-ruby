@@ -3,7 +3,7 @@ require 'spec_helper'
 require 'rack'
 require 'stringio'
 
-describe Pusher::WebHook do
+describe Sockudo::WebHook do
   before :each do
     @hook_data = {
       "time_ms" => 123456,
@@ -21,7 +21,7 @@ describe Pusher::WebHook do
         'CONTENT_TYPE' => 'application/json',
         'rack.input' => StringIO.new(MultiJson.encode(@hook_data))
       })
-      wh = Pusher::WebHook.new(request)
+      wh = Sockudo::WebHook.new(request)
       expect(wh.key).to eq('1234')
       expect(wh.signature).to eq('asdf')
       expect(wh.data).to eq(@hook_data)
@@ -34,7 +34,7 @@ describe Pusher::WebHook do
         :content_type => 'application/json',
         :body => MultiJson.encode(@hook_data),
       }
-      wh = Pusher::WebHook.new(request)
+      wh = Sockudo::WebHook.new(request)
       expect(wh.key).to eq('1234')
       expect(wh.signature).to eq('asdf')
       expect(wh.data).to eq(@hook_data)
@@ -51,8 +51,8 @@ describe Pusher::WebHook do
         :body => @body
       }
 
-      @client = Pusher::Client.new
-      @wh = Pusher::WebHook.new(request, @client)
+      @client = Sockudo::Client.new
+      @wh = Sockudo::WebHook.new(request, @client)
     end
 
     it "should validate" do
@@ -64,7 +64,7 @@ describe Pusher::WebHook do
     it "should not validate if key is wrong" do
       @client.key = '12345'
       @client.secret = 'asdf'
-      expect(Pusher.logger).to receive(:warn).with("Received webhook with unknown key: 1234")
+      expect(Sockudo.logger).to receive(:warn).with("Received webhook with unknown key: 1234")
       expect(@wh).not_to be_valid
     end
 
@@ -73,7 +73,7 @@ describe Pusher::WebHook do
       @client.secret = 'asdfxxx'
       digest = OpenSSL::Digest::SHA256.new
       expected = OpenSSL::HMAC.hexdigest(digest, @client.secret, @body)
-      expect(Pusher.logger).to receive(:warn).with("Received WebHook with invalid signature: got #{@wh.signature}, expected #{expected}")
+      expect(Sockudo.logger).to receive(:warn).with("Received WebHook with invalid signature: got #{@wh.signature}, expected #{expected}")
       expect(@wh).not_to be_valid
     end
 
@@ -95,14 +95,14 @@ describe Pusher::WebHook do
     it "should not validate if all keys are wrong with extra tokens" do
       @client.key = '123456'
       @client.secret = 'asdf'
-      expect(Pusher.logger).to receive(:warn).with("Received webhook with unknown key: 1234")
+      expect(Sockudo.logger).to receive(:warn).with("Received webhook with unknown key: 1234")
       expect(@wh.valid?({:key => '12345', :secret => 'asdf'})).to be_falsey
     end
 
     it "should not validate if secret is wrong with extra tokens" do
       @client.key = '123456'
       @client.secret = 'asdfxxx'
-      expect(Pusher.logger).to receive(:warn).with(/Received WebHook with invalid signature/)
+      expect(Sockudo.logger).to receive(:warn).with(/Received WebHook with invalid signature/)
       expect(@wh.valid?({:key => '1234', :secret => 'wtf'})).to be_falsey
     end
 

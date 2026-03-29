@@ -4,13 +4,13 @@ rescue LoadError
   puts 'although not required, it is recommended that you use bundler when running the tests'
 end
 
-ENV['PUSHER_URL']= 'http://some:secret@api.secret.pusherapp.com:441/apps/54'
+ENV['SOCKUDO_URL']= 'http://some:secret@api.secret.localhost:441/apps/54'
 
 require 'rspec'
 require 'em-http' # As of webmock 1.4.0, em-http must be loaded first
 require 'webmock/rspec'
 
-require 'pusher'
+require 'sockudo'
 require 'eventmachine'
 
 RSpec.configure do |config|

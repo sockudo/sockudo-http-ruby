@@ -1,29 +1,29 @@
 # -*- coding: utf-8 -*-
 require 'spec_helper'
 
-describe Pusher::Channel do
+describe Sockudo::Channel do
   before do
-    @client = Pusher::Client.new({
+    @client = Sockudo::Client.new({
       :app_id => '20',
       :key => '12345678900000001',
       :secret => '12345678900000001',
-      :host => 'api.pusherapp.com',
+      :host => 'localhost',
       :port => 80,
     })
     @channel = @client['test_channel']
   end
 
-  let(:pusher_url_regexp) { %r{/apps/20/events} }
+  let(:sockudo_url_regexp) { %r{/apps/20/events} }
 
   def stub_post(status, body = nil)
     options = {:status => status}
     options.merge!({:body => body}) if body
 
-    stub_request(:post, pusher_url_regexp).to_return(options)
+    stub_request(:post, sockudo_url_regexp).to_return(options)
   end
 
   def stub_post_to_raise(e)
-    stub_request(:post, pusher_url_regexp).to_raise(e)
+    stub_request(:post, sockudo_url_regexp).to_raise(e)
   end
 
   describe '#trigger!' do
@@ -37,26 +37,26 @@ describe Pusher::Channel do
     it "should log failure if error raised in http call" do
       stub_post_to_raise(HTTPClient::BadResponseError)
 
-      expect(Pusher.logger).to receive(:error).with("Exception from WebMock (HTTPClient::BadResponseError) (Pusher::HTTPError)")
-      expect(Pusher.logger).to receive(:debug) #backtrace
+      expect(Sockudo.logger).to receive(:error).with("Exception from WebMock (HTTPClient::BadResponseError) (Sockudo::HTTPError)")
+      expect(Sockudo.logger).to receive(:debug) #backtrace
       @channel.trigger('new_event', 'Some data')
     end
 
-    it "should log failure if Pusher returns an error response" do
+    it "should log failure if Sockudo returns an error response" do
       stub_post 401, "some signature info"
-      expect(Pusher.logger).to receive(:error).with("some signature info (Pusher::AuthenticationError)")
-      expect(Pusher.logger).to receive(:debug) #backtrace
+      expect(Sockudo.logger).to receive(:error).with("some signature info (Sockudo::AuthenticationError)")
+      expect(Sockudo.logger).to receive(:debug) #backtrace
       @channel.trigger('new_event', 'Some data')
     end
   end
 
   describe "#initialization" do
     it "should not be too long" do
-      expect { @client['b'*201] }.to raise_error(Pusher::Error)
+      expect { @client['b'*201] }.to raise_error(Sockudo::Error)
     end
 
     it "should not use bad characters" do
-      expect { @client['*^!±`/""'] }.to raise_error(Pusher::Error)
+      expect { @client['*^!±`/""'] }.to raise_error(Sockudo::Error)
     end
   end
 
@@ -106,14 +106,14 @@ describe Pusher::Channel do
 
     it "should raise error if authentication is invalid" do
       [nil, ''].each do |invalid|
-        expect(authentication_string(invalid)).to raise_error Pusher::Error
+        expect(authentication_string(invalid)).to raise_error Sockudo::Error
       end
     end
 
     describe 'with extra string argument' do
       it 'should be a string or nil' do
-        expect(authentication_string('1.1', 123)).to raise_error Pusher::Error
-        expect(authentication_string('1.1', {})).to raise_error Pusher::Error
+        expect(authentication_string('1.1', 123)).to raise_error Sockudo::Error
+        expect(authentication_string('1.1', {})).to raise_error Sockudo::Error
 
         expect(authentication_string('1.1', 'boom')).not_to raise_error
         expect(authentication_string('1.1', nil)).not_to raise_error
@@ -146,23 +146,23 @@ describe Pusher::Channel do
     it 'should fail on invalid socket_ids' do
       expect {
         @channel.authenticate('1.1:')
-      }.to raise_error Pusher::Error
+      }.to raise_error Sockudo::Error
 
       expect {
         @channel.authenticate('1.1foo', 'channel')
-      }.to raise_error Pusher::Error
+      }.to raise_error Sockudo::Error
 
       expect {
         @channel.authenticate(':1.1')
-      }.to raise_error Pusher::Error
+      }.to raise_error Sockudo::Error
 
       expect {
         @channel.authenticate('foo1.1', 'channel')
-      }.to raise_error Pusher::Error
+      }.to raise_error Sockudo::Error
 
       expect {
         @channel.authenticate('foo', 'channel')
-      }.to raise_error Pusher::Error
+      }.to raise_error Sockudo::Error
     end
   end
 

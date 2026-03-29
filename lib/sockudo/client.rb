@@ -1,10 +1,11 @@
 require 'base64'
+require 'securerandom'
 require 'pusher-signature'
 
-module Pusher
+module Sockudo
   class Client
     attr_accessor :scheme, :host, :port, :app_id, :key, :secret, :encryption_master_key
-    attr_reader :http_proxy, :proxy
+    attr_reader :http_proxy, :proxy, :base_id, :publish_serial
     attr_writer :connect_timeout, :send_timeout, :receive_timeout,
                 :keep_alive_timeout
 
@@ -16,7 +17,7 @@ module Pusher
     DEFAULT_CLUSTER = "mt1"
 
     # Loads the configuration from an url in the environment
-    def self.from_env(key = 'PUSHER_URL')
+    def self.from_env(key = 'SOCKUDO_URL')
       url = ENV[key] || raise(ConfigurationError, key)
       from_url(url)
     end
@@ -44,10 +45,14 @@ module Pusher
       @app_id = options[:app_id]
       @key = options[:key]
       @secret = options[:secret]
+      @auto_idempotency_key = options.fetch(:auto_idempotency_key, true)
+      @base_id = Base64.urlsafe_encode64(SecureRandom.random_bytes(12), padding: false)
+      @publish_serial = 0
+      @max_retries = 3
 
       @host = options[:host]
-      @host ||= "api-#{options[:cluster]}.pusher.com" unless options[:cluster].nil? || options[:cluster].empty?
-      @host ||= "api-#{DEFAULT_CLUSTER}.pusher.com"
+      @host ||= "api-#{options[:cluster]}.sockudo.com" unless options[:cluster].nil? || options[:cluster].empty?
+      @host ||= "api-#{DEFAULT_CLUSTER}.sockudo.com"
 
       @encryption_master_key = Base64.strict_decode64(options[:encryption_master_key_base64]) if options[:encryption_master_key_base64]
 
@@ -64,7 +69,7 @@ module Pusher
     def authentication_token
       raise ConfigurationError, :key unless @key
       raise ConfigurationError, :secret unless @secret
-      Pusher::Signature::Token.new(@key, @secret)
+      Sockudo::Signature::Token.new(@key, @secret)
     end
 
     # @private Builds a url for this app, optionally appending a path
@@ -78,11 +83,11 @@ module Pusher
       })
     end
 
-    # Configure Pusher connection by providing a url rather than specifying
+    # Configure Sockudo connection by providing a url rather than specifying
     # scheme, key, secret, and app_id separately.
     #
     # @example
-    #   Pusher.url = http://KEY:SECRET@api.pusherapp.com/apps/APP_ID
+    #   Sockudo.url = http://KEY:SECRET@localhost/apps/APP_ID
     #
     def url=(url)
       uri = URI.parse(url)
@@ -106,11 +111,11 @@ module Pusher
       }
     end
 
-    # Configure whether Pusher API calls should be made over SSL
+    # Configure whether Sockudo API calls should be made over SSL
     # (default false)
     #
     # @example
-    #   Pusher.encrypted = true
+    #   Sockudo.encrypted = true
     #
     def encrypted=(boolean)
       @scheme = boolean ? 'https' : 'http'
@@ -125,7 +130,7 @@ module Pusher
     def cluster=(cluster)
       cluster = DEFAULT_CLUSTER if cluster.nil? || cluster.empty?
 
-      @host = "api-#{cluster}.pusher.com"
+      @host = "api-#{cluster}.sockudo.com"
     end
 
     # Convenience method to set all timeouts to the same value (in seconds).
@@ -151,18 +156,18 @@ module Pusher
     #
     # @example
     #   begin
-    #     Pusher.get('/channels', filter_by_prefix: 'private-')
-    #   rescue Pusher::Error => e
+    #     Sockudo.get('/channels', filter_by_prefix: 'private-')
+    #   rescue Sockudo::Error => e
     #     # Handle error
     #   end
     #
     # @param path [String] Path excluding /apps/APP_ID
-    # @param params [Hash] API params (see http://pusher.com/docs/rest_api)
+    # @param params [Hash] API params (see http://sockudo.com/docs/rest_api)
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def get(path, params = {})
       resource(path).get(params)
@@ -176,7 +181,7 @@ module Pusher
     # details and examples.
     #
     # @param path [String] Path excluding /apps/APP_ID
-    # @param params [Hash] API params (see http://pusher.com/docs/rest_api)
+    # @param params [Hash] API params (see http://sockudo.com/docs/rest_api)
     #
     # @return Either an EM::DefaultDeferrable or a HTTPClient::Connection
     #
@@ -186,15 +191,15 @@ module Pusher
 
     # POST arbitrary REST API resource using a synchronous http client.
     # Works identially to get method, but posts params as JSON in post body.
-    def post(path, params = {})
-      resource(path).post(params)
+    def post(path, params = {}, headers = {})
+      resource(path).post(params, headers)
     end
 
     # POST arbitrary REST API resource using an asynchronous http client.
     # Works identially to get_async method, but posts params as JSON in post
     # body.
-    def post_async(path, params = {})
-      resource(path).post_async(params)
+    def post_async(path, params = {}, headers = {})
+      resource(path).post_async(params, headers)
     end
 
     ## HELPER METHODS ##
@@ -212,9 +217,9 @@ module Pusher
     # on a channel. No API request is made.
     #
     # @example
-    #   Pusher['my-channel']
+    #   Sockudo['my-channel']
     # @return [Channel]
-    # @raise [Pusher::Error] if the channel name is invalid.
+    # @raise [Sockudo::Error] if the channel name is invalid.
     #   Channel names should be less than 200 characters, and
     #   should not contain anything other than letters, numbers, or the
     #   characters "_\-=@,.;"
@@ -230,10 +235,10 @@ module Pusher
     #
     # @param params [Hash] Hash of parameters for the API - see REST API docs
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def channels(params = {})
       get('/channels', params)
@@ -246,10 +251,10 @@ module Pusher
     # @param channel_name [String] Channel name (max 200 characters)
     # @param params [Hash] Hash of parameters for the API - see REST API docs
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def channel_info(channel_name, params = {})
       get("/channels/#{channel_name}", params)
@@ -262,10 +267,10 @@ module Pusher
     # @param channel_name [String] Channel name (max 200 characters)
     # @param params [Hash] Hash of parameters for the API - see REST API docs
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def channel_users(channel_name, params = {})
       get("/channels/#{channel_name}/users", params)
@@ -279,55 +284,65 @@ module Pusher
     # @param event_name [String]
     # @param data [Object] Event data to be triggered in javascript.
     #   Objects other than strings will be converted to JSON
-    # @param params [Hash] Additional parameters to send to api, e.g socket_id
+    # @param params [Hash] Additional parameters to send to api, e.g socket_id.
+    #   May include :extras => { headers: Hash, ephemeral: Boolean, idempotency_key: String, echo: Boolean }
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def trigger(channels, event_name, data, params = {})
-      post('/events', trigger_params(channels, event_name, data, params))
+      params = inject_auto_idempotency_key(params)
+      body, headers = trigger_params_with_headers(channels, event_name, data, params)
+      post_with_retry('/events', body, headers)
     end
 
     # Trigger multiple events at the same time
     #
     # POST /apps/[app_id]/batch_events
     #
-    # @param events [Array] List of events to publish
+    # @param events [Array] List of events to publish. Each event hash may
+    #   include an :idempotency_key field for at-most-once delivery.
     #
-    # @return [Hash] See Pusher API docs
+    # @return [Hash] See Sockudo API docs
     #
-    # @raise [Pusher::Error] Unsuccessful response - see the error message
-    # @raise [Pusher::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
     def trigger_batch(*events)
-      post('/batch_events', trigger_batch_params(events.flatten))
+      flat_events = events.flatten
+      inject_auto_idempotency_keys_batch!(flat_events)
+      post_with_retry('/batch_events', trigger_batch_params(flat_events))
     end
 
     # Trigger an event on one or more channels asynchronously.
     # For parameters see #trigger
     #
     def trigger_async(channels, event_name, data, params = {})
-      post_async('/events', trigger_params(channels, event_name, data, params))
+      params = inject_auto_idempotency_key(params)
+      body, headers = trigger_params_with_headers(channels, event_name, data, params)
+      post_async('/events', body, headers)
     end
 
     # Trigger multiple events asynchronously.
     # For parameters see #trigger_batch
     #
     def trigger_batch_async(*events)
-      post_async('/batch_events', trigger_batch_params(events.flatten))
+      flat_events = events.flatten
+      inject_auto_idempotency_keys_batch!(flat_events)
+      post_async('/batch_events', trigger_batch_params(flat_events))
     end
 
 
     # Generate the expected response for an authentication endpoint.
-    # See https://pusher.com/docs/channels/server_api/authorizing-users for details.
+    # See https://sockudo.com/docs/channels/server_api/authorizing-users for details.
     #
     # @example Private channels
-    #   render :json => Pusher.authenticate('private-my_channel', params[:socket_id])
+    #   render :json => Sockudo.authenticate('private-my_channel', params[:socket_id])
     #
     # @example Presence channels
-    #   render :json => Pusher.authenticate('presence-my_channel', params[:socket_id], {
+    #   render :json => Sockudo.authenticate('presence-my_channel', params[:socket_id], {
     #     :user_id => current_user.id, # => required
     #     :user_info => { # => optional - for example
     #       :name => current_user.name,
@@ -340,7 +355,7 @@ module Pusher
     #
     # @return [Hash]
     #
-    # @raise [Pusher::Error] if channel_name or socket_id are invalid
+    # @raise [Sockudo::Error] if channel_name or socket_id are invalid
     #
     # @private Custom data is sent to server as JSON-encoded string
     #
@@ -356,18 +371,18 @@ module Pusher
     end
 
     # Generate the expected response for a user authentication endpoint.
-    # See https://pusher.com/docs/authenticating_users for details.
+    # See https://sockudo.com/docs/authenticating_users for details.
     #
     # @example
     #   user_data = { id: current_user.id.to_s, company_id: current_user.company_id }
-    #   render :json => Pusher.authenticate_user(params[:socket_id], user_data)
+    #   render :json => Sockudo.authenticate_user(params[:socket_id], user_data)
     #
     # @param socket_id [String]
     # @param user_data [Hash] user's properties (id is required and must be a string)
     #
     # @return [Hash]
     #
-    # @raise [Pusher::Error] if socket_id or user_data is invalid
+    # @raise [Sockudo::Error] if socket_id or user_data is invalid
     #
     # @private Custom data is sent to server as JSON-encoded string
     #
@@ -377,7 +392,7 @@ module Pusher
       custom_data = MultiJson.encode(user_data)
       auth = authentication_string(socket_id, custom_data)
 
-      { auth:, user_data: custom_data }
+      { auth: auth, user_data: custom_data }
     end
 
     # @private Construct a net/http http client
@@ -424,14 +439,52 @@ module Pusher
 
     private
 
-    include Pusher::Utils
+    include Sockudo::Utils
+
+    def inject_auto_idempotency_key(params)
+      return params if params.key?(:idempotency_key) || !@auto_idempotency_key
+      serial = (@publish_serial += 1)
+      params.merge(idempotency_key: "#{@base_id}:#{serial}")
+    end
+
+    def inject_auto_idempotency_keys_batch!(events)
+      return false unless @auto_idempotency_key
+      serial = (@publish_serial += 1)
+      injected = false
+      events.each_with_index do |event, index|
+        next if event.key?(:idempotency_key)
+        event[:idempotency_key] = "#{@base_id}:#{serial}:#{index}"
+        injected = true
+      end
+      injected
+    end
+
+    def post_with_retry(path, body, headers = {})
+      last_error = nil
+      @max_retries.times do |attempt|
+        begin
+          return post(path, body, headers)
+        rescue Sockudo::HTTPError => e
+          last_error = e
+          raise unless attempt < @max_retries - 1
+        rescue Sockudo::Error => e
+          if e.respond_to?(:status) && e.status.is_a?(Integer) && e.status >= 500 && e.status < 600
+            last_error = e
+            raise unless attempt < @max_retries - 1
+          else
+            raise
+          end
+        end
+      end
+      raise last_error
+    end
 
     def trigger_params(channels, event_name, data, params)
       channels = Array(channels).map(&:to_s)
-      raise Pusher::Error, "Too many channels (#{channels.length}), max 100" if channels.length > 100
+      raise Sockudo::Error, "Too many channels (#{channels.length}), max 100" if channels.length > 100
 
       encoded_data = if channels.any?{ |c| c.match(/^private-encrypted-/) } then
-        raise Pusher::Error, "Cannot trigger to multiple channels if any are encrypted" if channels.length > 1
+        raise Sockudo::Error, "Cannot trigger to multiple channels if any are encrypted" if channels.length > 1
         encrypt(channels[0], encode_data(data))
       else
         encode_data(data)
@@ -442,6 +495,18 @@ module Pusher
         channels: channels,
         data: encoded_data,
       })
+    end
+
+    def trigger_params_with_headers(channels, event_name, data, params)
+      params = params.dup
+      idempotency_key = params.delete(:idempotency_key)
+      body = trigger_params(channels, event_name, data, params)
+      headers = {}
+      if idempotency_key
+        body[:idempotency_key] = idempotency_key
+        headers['X-Idempotency-Key'] = idempotency_key
+      end
+      [body, headers]
     end
 
     def trigger_batch_params(events)
@@ -501,13 +566,13 @@ module Pusher
     # endpoint response. Generally the authenticate method should be used in
     # preference to this one.
     #
-    # @param socket_id [String] Each Pusher socket connection receives a
-    #   unique socket_id. This is sent from pusher.js to your server when
+    # @param socket_id [String] Each Sockudo socket connection receives a
+    #   unique socket_id. This is sent from sockudo.js to your server when
     #   channel authentication is required.
     # @param custom_string [String] Allows signing additional data
     # @return [String]
     #
-    # @raise [Pusher::Error] if socket_id or custom_string invalid
+    # @raise [Sockudo::Error] if socket_id or custom_string invalid
     #
     def authentication_string(socket_id, custom_string = nil)
       string_to_sign = [socket_id, 'user', custom_string].compact.map(&:to_s).join('::')
@@ -518,7 +583,7 @@ module Pusher
     def validate_user_data(user_data)
       return if user_data_valid?(user_data)
 
-      raise Pusher::Error, "Invalid user data #{user_data.inspect}"
+      raise Sockudo::Error, "Invalid user data #{user_data.inspect}"
     end
 
     def user_data_valid?(data)

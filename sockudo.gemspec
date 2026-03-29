@@ -1,16 +1,16 @@
 # -*- encoding: utf-8 -*-
 
-require File.expand_path('../lib/pusher/version', __FILE__)
+require File.expand_path('../lib/sockudo/version', __FILE__)
 
 Gem::Specification.new do |s|
-  s.name        = "pusher"
-  s.version     = Pusher::VERSION
+  s.name        = "sockudo"
+  s.version     = Sockudo::VERSION
   s.platform    = Gem::Platform::RUBY
-  s.authors     = ["Pusher"]
-  s.email       = ["support@pusher.com"]
-  s.homepage    = "http://github.com/pusher/pusher-http-ruby"
-  s.summary     = %q{Pusher Channels API client}
-  s.description = %q{Wrapper for Pusher Channels REST api: : https://pusher.com/channels}
+  s.authors     = ["Sockudo"]
+  s.email       = ["support@sockudo.com"]
+  s.homepage    = "http://github.com/sockudo/sockudo-http-ruby"
+  s.summary     = %q{Sockudo API client}
+  s.description = %q{Wrapper for Sockudo REST API}
   s.license     = "MIT"
 
   s.required_ruby_version = ">= 2.6"

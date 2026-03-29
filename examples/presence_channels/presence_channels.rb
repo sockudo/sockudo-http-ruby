@@ -1,10 +1,10 @@
 require 'sinatra'
 require 'sinatra/cookies'
 require 'sinatra/json'
-require 'pusher'
+require 'sockudo'
 
-# You can get these variables from http://dashboard.pusher.com
-pusher = Pusher::Client.new(
+# You can get these variables from http://dashboard.sockudo.com
+sockudo = Sockudo::Client.new(
   app_id: 'your-app-id',
      key: 'your-app-key',
   secret: 'your-app-secret',
@@ -23,8 +23,8 @@ get '/signin' do
   'Ok'
 end
 
-# Auth endpoint: https://pusher.com/docs/channels/server_api/authenticating-users
-post '/pusher/auth' do
+# Auth endpoint: https://sockudo.com/docs/channels/server_api/authenticating-users
+post '/sockudo/auth' do
   channel_data = {
       user_id: 'example_user',
       user_info: {
@@ -34,22 +34,22 @@ post '/pusher/auth' do
   }
 
   if cookies[:user_id] == 'example_cookie'
-    response = pusher.authenticate(params[:channel_name], params[:socket_id], channel_data)
+    response = sockudo.authenticate(params[:channel_name], params[:socket_id], channel_data)
     json response
   else
     status 403
   end
 end
 
-get '/pusher_trigger' do
+get '/sockudo_trigger' do
   channels = ['presence-channel-test'];
 
   begin
-    pusher.trigger(channels, 'test-event', {
+    sockudo.trigger(channels, 'test-event', {
       message: 'hello world'
     })
-  rescue Pusher::Error => e
-  # For example, Pusher::AuthenticationError, Pusher::HTTPError, or Pusher::Error
+  rescue Sockudo::Error => e
+  # For example, Sockudo::AuthenticationError, Sockudo::HTTPError, or Sockudo::Error
   end
 
   'Triggered!'
