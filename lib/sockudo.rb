@@ -2,6 +2,7 @@ autoload 'Logger', 'logger'
 require 'securerandom'
 require 'uri'
 require 'forwardable'
+require 'pusher-signature'
 
 require 'sockudo/utils'
 require 'sockudo/client'
@@ -25,6 +26,10 @@ module Sockudo
     end
   end
   class HTTPError < Error; attr_accessor :original_error; end
+
+  # Alias Pusher::Signature into the Sockudo namespace so that request signing
+  # works correctly (pusher-signature gem defines Pusher::Signature, not Sockudo::Signature).
+  Signature = Pusher::Signature
 
   class << self
     extend Forwardable
