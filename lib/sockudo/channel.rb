@@ -98,6 +98,36 @@ module Sockudo
       @client.channel_info(name, :info => attributes.join(','))
     end
 
+    # Request durable history for this channel.
+    #
+    # @param params [Hash] History API query params. Supported keys include:
+    #   :limit, :direction, :cursor, :start_serial, :end_serial, :start_time_ms, :end_time_ms
+    # @return [Hash] History page payload for this channel
+    #
+    def history(params = {})
+      @client.channel_history(name, params)
+    end
+
+    # Request presence history for a presence channel.
+    #
+    # @param params [Hash] Presence history API query params. Supported keys include:
+    #   :limit, :direction, :cursor, :start_serial, :end_serial, :start_time_ms, :end_time_ms
+    # @return [Hash] Presence history page payload for this channel
+    #
+    def presence_history(params = {})
+      @client.channel_presence_history(name, params)
+    end
+
+    # Request a reconstructed presence snapshot for a presence channel.
+    #
+    # @param params [Hash] Snapshot API query params. Supported keys include:
+    #   :at_time_ms, :at_serial
+    # @return [Hash] Presence snapshot payload for this channel
+    #
+    def presence_snapshot(params = {})
+      @client.channel_presence_snapshot(name, params)
+    end
+
     # Request users for a presence channel
     # Only works on presence channels (see: http://sockudo.com/docs/client_api_guide/client_presence_channels and https://sockudo.com/docs/rest_api)
     #

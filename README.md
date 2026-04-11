@@ -200,6 +200,26 @@ user_count = info[:user_count]
 # List channels (optionally filtered)
 result = sockudo.channels(filter_by_prefix: 'presence-')
 
+# Read channel history with newest-first pagination
+page = sockudo.channel_history('my-channel', limit: 50, direction: 'newest_first')
+next_cursor = page[:next_cursor]
+
+# Continue pagination with an opaque cursor
+page_2 = sockudo.channel_history('my-channel', cursor: next_cursor)
+
+# Read presence history for a presence channel
+presence_page = sockudo.channel_presence_history(
+  'presence-my-channel',
+  limit: 50,
+  direction: 'newest_first'
+)
+
+# Reconstruct effective members at a point in time
+snapshot = sockudo.channel_presence_snapshot(
+  'presence-my-channel',
+  at_serial: 4
+)
+
 # Users in a presence channel
 result = sockudo.channel_users('presence-my-channel')
 ```

@@ -93,6 +93,36 @@ describe Sockudo::Channel do
     end
   end
 
+  describe '#history' do
+    it "should call the Client#channel_history" do
+      expect(@client).to receive(:get)
+                           .with("/channels/mychannel/history", {:limit => 2, :direction => "newest_first"})
+                           .and_return({:items => [{:serial => 2}, {:serial => 1}]})
+      @channel = @client['mychannel']
+      @channel.history(limit: 2, direction: 'newest_first')
+    end
+  end
+
+  describe '#presence_history' do
+    it "should call the Client#channel_presence_history" do
+      expect(@client).to receive(:get)
+                           .with("/channels/presence-mychannel/presence/history", {:limit => 2, :direction => "newest_first"})
+                           .and_return({:items => [{:serial => 2}, {:serial => 1}]})
+      @channel = @client['presence-mychannel']
+      @channel.presence_history(limit: 2, direction: 'newest_first')
+    end
+  end
+
+  describe '#presence_snapshot' do
+    it "should call the Client#channel_presence_snapshot" do
+      expect(@client).to receive(:get)
+                           .with("/channels/presence-mychannel/presence/history/snapshot", {:at_serial => 4})
+                           .and_return({:member_count => 1})
+      @channel = @client['presence-mychannel']
+      @channel.presence_snapshot(at_serial: 4)
+    end
+  end
+
   describe "#authentication_string" do
     def authentication_string(*data)
       lambda { @channel.authentication_string(*data) }

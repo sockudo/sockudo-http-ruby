@@ -242,8 +242,8 @@ describe Sockudo do
           })
           expect(@client.channels).to eq({
             :channels => {
-              "channel1" => {},
-              "channel2" => {}
+              :channel1 => {},
+              :channel2 => {}
             }
           })
         end
@@ -274,7 +274,89 @@ describe Sockudo do
             })
           })
           expect(@client.channel_users('mychannel')).to eq({
-            :users => [{ 'id' => 1}]
+            :users => [{ :id => 1}]
+          })
+        end
+      end
+
+      describe '#channel_history' do
+        it "should call correct URL and symbolise response" do
+          api_path = %r{/apps/20/channels/mychannel/history}
+          stub_request(:get, api_path).with(
+            query: hash_including(
+              "direction" => "newest_first",
+              "limit" => "2"
+            )
+          ).to_return({
+            :status => 200,
+            :body => MultiJson.encode({
+              'items' => [
+                { 'serial' => 2 },
+                { 'serial' => 1 }
+              ],
+              'has_more' => false
+            })
+          })
+
+          expect(@client.channel_history('mychannel', direction: 'newest_first', limit: 2)).to eq({
+            :items => [
+              { :serial => 2 },
+              { :serial => 1 }
+            ],
+            :has_more => false
+          })
+        end
+      end
+
+      describe '#channel_presence_history' do
+        it "should call correct URL and symbolise response" do
+          api_path = %r{/apps/20/channels/presence-mychannel/presence/history}
+          stub_request(:get, api_path).with(
+            query: hash_including(
+              "direction" => "newest_first",
+              "limit" => "2"
+            )
+          ).to_return({
+            :status => 200,
+            :body => MultiJson.encode({
+              'items' => [
+                { 'serial' => 2, 'event' => 'member_removed' },
+                { 'serial' => 1, 'event' => 'member_added' }
+              ],
+              'has_more' => false
+            })
+          })
+
+          expect(@client.channel_presence_history('presence-mychannel', direction: 'newest_first', limit: 2)).to eq({
+            :items => [
+              { :serial => 2, :event => 'member_removed' },
+              { :serial => 1, :event => 'member_added' }
+            ],
+            :has_more => false
+          })
+        end
+      end
+
+      describe '#channel_presence_snapshot' do
+        it "should call correct URL and symbolise response" do
+          api_path = %r{/apps/20/channels/presence-mychannel/presence/history/snapshot}
+          stub_request(:get, api_path).with(
+            query: hash_including(
+              "at_serial" => "4"
+            )
+          ).to_return({
+            :status => 200,
+            :body => MultiJson.encode({
+              'channel' => 'presence-mychannel',
+              'members' => [{ 'user_id' => 'u-1' }],
+              'member_count' => 1
+            })
+          })
+
+          expect(@client.channel_presence_snapshot('presence-mychannel', at_serial: 4)).to eq({
+            :channel => 'presence-mychannel',
+            :members => [{ :user_id => 'u-1' }],
+            :member_count => 1
           })
         end
       end
@@ -439,12 +521,12 @@ describe Sockudo do
           }
         end
 
-        it "should not include idempotency_key header when not provided" do
+        it "should auto-generate idempotency_key when not provided" do
           @client.trigger('mychannel', 'event', {'some' => 'data'})
           expect(WebMock).to have_requested(:post, @api_path).with { |req|
             parsed = MultiJson.decode(req.body)
-            expect(parsed).not_to have_key("idempotency_key")
-            expect(req.headers).not_to have_key('X-Idempotency-Key')
+            expect(parsed["idempotency_key"]).to match(/\A[\w-]+:\d+\z/)
+            expect(req.headers['X-Idempotency-Key']).to eq(parsed["idempotency_key"])
           }
         end
       end
@@ -470,12 +552,15 @@ describe Sockudo do
           )
           expect(WebMock).to have_requested(:post, @api_path).with { |req|
             parsed = MultiJson.decode(req.body)
-            expect(parsed).to eq(
-              "batch" => [
-                { "channel" => "mychannel", "name" => "event", "data" => "{\"some\":\"data\"}"},
-                { "channel" => "mychannel", "name" => "event", "data" => "already encoded"}
-              ]
-            )
+            batch = parsed["batch"]
+            expect(batch[0]["channel"]).to eq("mychannel")
+            expect(batch[0]["name"]).to eq("event")
+            expect(batch[0]["data"]).to eq("{\"some\":\"data\"}")
+            expect(batch[0]["idempotency_key"]).to match(/\A[\w-]+:\d+:0\z/)
+            expect(batch[1]["channel"]).to eq("mychannel")
+            expect(batch[1]["name"]).to eq("event")
+            expect(batch[1]["data"]).to eq("already encoded")
+            expect(batch[1]["idempotency_key"]).to match(/\A[\w-]+:\d+:1\z/)
           }
         end
 
@@ -528,7 +613,7 @@ describe Sockudo do
           }
         end
 
-        it "should preserve idempotency_key per event in batch" do
+        it "should preserve explicit idempotency_key and auto-generate missing ones in batch" do
           @client.trigger_batch(
             {channel: 'mychannel', name: 'event', data: 'foo', idempotency_key: 'key-1'},
             {channel: 'mychannel', name: 'event2', data: 'bar'},
@@ -536,7 +621,7 @@ describe Sockudo do
           expect(WebMock).to have_requested(:post, @api_path).with { |req|
             batch = MultiJson.decode(req.body)["batch"]
             expect(batch[0]["idempotency_key"]).to eq("key-1")
-            expect(batch[1]).not_to have_key("idempotency_key")
+            expect(batch[1]["idempotency_key"]).to match(/\A[\w-]+:\d+:1\z/)
           }
         end
       end
@@ -611,7 +696,7 @@ describe Sockudo do
               :body => MultiJson.encode({'something' => {'a' => 'hash'}})
             })
             expect(call_api).to eq({
-              :something => {'a' => 'hash'}
+              :something => { :a => 'hash' }
             })
           end
 
@@ -743,7 +828,7 @@ describe Sockudo do
                 })
                 call_api.callback { |response|
                   expect(response).to eq({
-                    :something => {'a' => 'hash'}
+                    :something => { :a => 'hash' }
                   })
                   EM.stop
                 }

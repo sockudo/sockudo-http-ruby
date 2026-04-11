@@ -260,6 +260,51 @@ module Sockudo
       get("/channels/#{channel_name}", params)
     end
 
+    # Request durable history for a specific channel
+    #
+    # GET /apps/[id]/channels/[channel_name]/history
+    #
+    # @param channel_name [String] Channel name (max 200 characters)
+    # @param params [Hash] Hash of parameters for the API. Supported keys include:
+    #   :limit, :direction, :cursor, :start_serial, :end_serial, :start_time_ms, :end_time_ms
+    #
+    # @return [Hash] See Sockudo history API docs
+    #
+    # @raise [Sockudo::Error] Unsuccessful response - see the error message
+    # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
+    #
+    def channel_history(channel_name, params = {})
+      get("/channels/#{channel_name}/history", params)
+    end
+
+    # Request presence history for a specific presence channel
+    #
+    # GET /apps/[id]/channels/[channel_name]/presence/history
+    #
+    # @param channel_name [String] Presence channel name (max 200 characters)
+    # @param params [Hash] Hash of parameters for the API. Supported keys include:
+    #   :limit, :direction, :cursor, :start_serial, :end_serial, :start_time_ms, :end_time_ms
+    #
+    # @return [Hash] See Sockudo presence history API docs
+    #
+    def channel_presence_history(channel_name, params = {})
+      get("/channels/#{channel_name}/presence/history", params)
+    end
+
+    # Request a reconstructed presence snapshot for a specific presence channel
+    #
+    # GET /apps/[id]/channels/[channel_name]/presence/history/snapshot
+    #
+    # @param channel_name [String] Presence channel name (max 200 characters)
+    # @param params [Hash] Hash of parameters for the API. Supported keys include:
+    #   :at_time_ms, :at_serial
+    #
+    # @return [Hash] See Sockudo presence snapshot API docs
+    #
+    def channel_presence_snapshot(channel_name, params = {})
+      get("/channels/#{channel_name}/presence/history/snapshot", params)
+    end
+
     # Request info for users of a presence channel
     #
     # GET /apps/[id]/channels/[channel_name]/users

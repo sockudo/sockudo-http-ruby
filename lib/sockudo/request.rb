@@ -103,9 +103,21 @@ module Sockudo
     end
 
     def symbolize_first_level(hash)
-      hash.inject({}) do |result, (key, value)|
-        result[key.to_sym] = value
-        result
+      hash.each_with_object({}) do |(key, value), result|
+        result[key.to_sym] = deep_symbolize(value)
+      end
+    end
+
+    def deep_symbolize(value)
+      case value
+      when Hash
+        value.each_with_object({}) do |(key, nested_value), result|
+          result[key.to_sym] = deep_symbolize(nested_value)
+        end
+      when Array
+        value.map { |item| deep_symbolize(item) }
+      else
+        value
       end
     end
   end
