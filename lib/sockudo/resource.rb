@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Sockudo
   class Resource
     def initialize(client, path)
@@ -30,7 +32,7 @@ module Sockudo
     end
 
     def url
-      @_url ||= @client.url(@path)
+      @url ||= @client.url(@path)
     end
   end
 end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'sinatra'
 require 'sinatra/cookies'
 require 'sinatra/json'
@@ -6,9 +8,9 @@ require 'sockudo'
 # You can get these variables from http://dashboard.sockudo.com
 sockudo = Sockudo::Client.new(
   app_id: 'your-app-id',
-     key: 'your-app-key',
+  key: 'your-app-key',
   secret: 'your-app-secret',
- cluster: 'your-app-cluster'
+  cluster: 'your-app-cluster'
 )
 
 set :public_folder, 'public'
@@ -26,11 +28,11 @@ end
 # Auth endpoint: https://sockudo.com/docs/channels/server_api/authenticating-users
 post '/sockudo/auth' do
   channel_data = {
-      user_id: 'example_user',
-      user_info: {
-        name: 'example_name',
-       email: 'example_email'
-      }
+    user_id: 'example_user',
+    user_info: {
+      name: 'example_name',
+      email: 'example_email'
+    }
   }
 
   if cookies[:user_id] == 'example_cookie'
@@ -42,14 +44,14 @@ post '/sockudo/auth' do
 end
 
 get '/sockudo_trigger' do
-  channels = ['presence-channel-test'];
+  channels = ['presence-channel-test']
 
   begin
     sockudo.trigger(channels, 'test-event', {
-      message: 'hello world'
-    })
-  rescue Sockudo::Error => e
-  # For example, Sockudo::AuthenticationError, Sockudo::HTTPError, or Sockudo::Error
+                      message: 'hello world'
+                    })
+  rescue Sockudo::Error
+    # For example, Sockudo::AuthenticationError, Sockudo::HTTPError, or Sockudo::Error
   end
 
   'Triggered!'

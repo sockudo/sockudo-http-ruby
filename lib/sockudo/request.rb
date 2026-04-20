@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pusher-signature'
 require 'digest/md5'
 require 'multi_json'
@@ -7,9 +9,11 @@ module Sockudo
     attr_reader :body, :params
 
     def initialize(client, verb, uri, params, body = nil, extra_headers = {})
-      @client, @verb, @uri = client, verb, uri
+      @client = client
+      @verb = verb
+      @uri = uri
       @head = {
-        'X-Pusher-Library' => 'sockudo-http-ruby ' + Sockudo::VERSION
+        'X-Pusher-Library' => "sockudo-http-ruby #{Sockudo::VERSION}"
       }
       @head.merge!(extra_headers) if extra_headers && !extra_headers.empty?
 
@@ -36,9 +40,9 @@ module Sockudo
         raise error
       end
 
-      body = response.body ? response.body.chomp : nil
+      body = response.body&.chomp
 
-      return handle_response(response.code.to_i, body)
+      handle_response(response.code.to_i, body)
     end
 
     def send_async
@@ -47,35 +51,33 @@ module Sockudo
         df = EM::DefaultDeferrable.new
 
         http = case @verb
-        when :post
-          http_client.post({
-            :query => @params, :body => @body, :head => @head
-          })
-        when :get
-          http_client.get({
-            :query => @params, :head => @head
-          })
-        else
-          raise "Unsupported verb"
+               when :post
+                 http_client.post({
+                                    query: @params, body: @body, head: @head
+                                  })
+               when :get
+                 http_client.get({
+                                   query: @params, head: @head
+                                 })
+               else
+                 raise 'Unsupported verb'
+               end
+        http.callback do
+          df.succeed(handle_response(http.response_header.status, http.response.chomp))
+        rescue StandardError => e
+          df.fail(e)
         end
-        http.callback {
-          begin
-            df.succeed(handle_response(http.response_header.status, http.response.chomp))
-          rescue => e
-            df.fail(e)
-          end
-        }
-        http.errback { |e|
+        http.errback do |_e|
           message = "Network error connecting to sockudo (#{http.error})"
           Sockudo.logger.debug(message)
           df.fail(Error.new(message))
-        }
+        end
 
-        return df
+        df
       else
         http = @client.sync_http_client
 
-        return http.request_async(@verb, @uri, @params, @body, @head)
+        http.request_async(@verb, @uri, @params, @body, @head)
       end
     end
 
@@ -84,9 +86,9 @@ module Sockudo
     def handle_response(status_code, body)
       case status_code
       when 200
-        return symbolize_first_level(MultiJson.decode(body))
+        symbolize_first_level(MultiJson.decode(body))
       when 202
-        return body.empty? ? true : symbolize_first_level(MultiJson.decode(body))
+        body.empty? || symbolize_first_level(MultiJson.decode(body))
       when 400
         raise Error, "Bad request: #{body}"
       when 401
@@ -94,9 +96,9 @@ module Sockudo
       when 404
         raise Error, "404 Not found (#{@uri.path})"
       when 407
-        raise Error, "Proxy Authentication Required"
+        raise Error, 'Proxy Authentication Required'
       when 413
-        raise Error, "Payload Too Large > 10KB"
+        raise Error, 'Payload Too Large > 10KB'
       else
         raise Error, "Unknown error (status code #{status_code}): #{body}"
       end

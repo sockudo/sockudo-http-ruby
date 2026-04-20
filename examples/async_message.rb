@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'rubygems'
 require 'sockudo'
 require 'eventmachine'
@@ -12,17 +14,16 @@ Sockudo.app_id = 'your_app_id'
 Sockudo.key = 'your_key'
 Sockudo.secret = 'your_secret'
 
-
-EM.run {
+EM.run do
   deferrable = Sockudo['test_channel'].trigger_async('my_event', 'hi')
 
-  deferrable.callback { # called on success
-    puts "Message sent successfully."
+  deferrable.callback do # called on success
+    puts 'Message sent successfully.'
     EM.stop
-  }
-  deferrable.errback { |error| # called on error
-    puts "Message could not be sent."
+  end
+  deferrable.errback do |error| # called on error
+    puts 'Message could not be sent.'
     puts error
     EM.stop
-  }
-}
+  end
+end

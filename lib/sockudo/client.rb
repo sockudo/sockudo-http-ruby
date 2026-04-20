@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'base64'
 require 'securerandom'
 require 'pusher-signature'
@@ -14,7 +16,7 @@ module Sockudo
     DEFAULT_SEND_TIMEOUT = 5
     DEFAULT_RECEIVE_TIMEOUT = 5
     DEFAULT_KEEP_ALIVE_TIMEOUT = 30
-    DEFAULT_CLUSTER = "mt1"
+    DEFAULT_CLUSTER = 'mt1'
 
     # Loads the configuration from an url in the environment
     def self.from_env(key = 'SOCKUDO_URL')
@@ -30,15 +32,15 @@ module Sockudo
     end
 
     def initialize(options = {})
-      @scheme = "https"
+      @scheme = 'https'
       @port = options[:port] || 443
 
       if options.key?(:encrypted)
-        warn "[DEPRECATION] `encrypted` is deprecated and will be removed in the next major version. Use `use_tls` instead."
+        warn '[DEPRECATION] `encrypted` is deprecated and will be removed in the next major version. Use `use_tls` instead.'
       end
 
       if options[:use_tls] == false || options[:encrypted] == false
-        @scheme = "http"
+        @scheme = 'http'
         @port = options[:port] || 80
       end
 
@@ -69,18 +71,20 @@ module Sockudo
     def authentication_token
       raise ConfigurationError, :key unless @key
       raise ConfigurationError, :secret unless @secret
+
       Sockudo::Signature::Token.new(@key, @secret)
     end
 
     # @private Builds a url for this app, optionally appending a path
     def url(path = nil)
       raise ConfigurationError, :app_id unless @app_id
+
       URI::Generic.build({
-        scheme: @scheme,
-        host: @host,
-        port: @port,
-        path: "/apps/#{@app_id}#{path}"
-      })
+                           scheme: @scheme,
+                           host: @host,
+                           port: @port,
+                           path: "/apps/#{@app_id}#{path}"
+                         })
     end
 
     # Configure Sockudo connection by providing a url rather than specifying
@@ -136,13 +140,15 @@ module Sockudo
     # Convenience method to set all timeouts to the same value (in seconds).
     # For more control, use the individual writers.
     def timeout=(value)
-      @connect_timeout, @send_timeout, @receive_timeout = value, value, value
+      @connect_timeout = value
+      @send_timeout = value
+      @receive_timeout = value
     end
 
     # Set an encryption_master_key to use with private-encrypted channels from
     # a base64 encoded string.
-    def encryption_master_key_base64=(s)
-      @encryption_master_key = s ? Base64.strict_decode64(s) : nil
+    def encryption_master_key_base64=(str)
+      @encryption_master_key = str ? Base64.strict_decode64(str) : nil
     end
 
     ## INTERACT WITH THE API ##
@@ -227,7 +233,7 @@ module Sockudo
       Channel.new(nil, channel_name, self)
     end
 
-    alias :[] :channel
+    alias [] channel
 
     # Request a list of occupied channels from the API
     #
@@ -305,6 +311,31 @@ module Sockudo
       get("/channels/#{channel_name}/presence/history/snapshot", params)
     end
 
+    # Request the latest visible version of a mutable message
+    def get_message(channel_name, message_serial, params = {})
+      get("/channels/#{channel_name}/messages/#{message_serial}", params)
+    end
+
+    # Request preserved versions of a mutable message
+    def get_message_versions(channel_name, message_serial, params = {})
+      get("/channels/#{channel_name}/messages/#{message_serial}/versions", params)
+    end
+
+    # Apply a mutable-message update
+    def update_message(channel_name, message_serial, params = {})
+      post("/channels/#{channel_name}/messages/#{message_serial}/update", params)
+    end
+
+    # Apply a mutable-message delete
+    def delete_message(channel_name, message_serial, params = {})
+      post("/channels/#{channel_name}/messages/#{message_serial}/delete", params)
+    end
+
+    # Apply a mutable-message append
+    def append_message(channel_name, message_serial, params = {})
+      post("/channels/#{channel_name}/messages/#{message_serial}/append", params)
+    end
+
     # Request info for users of a presence channel
     #
     # GET /apps/[id]/channels/[channel_name]/users
@@ -379,7 +410,6 @@ module Sockudo
       post_async('/batch_events', trigger_batch_params(flat_events))
     end
 
-
     # Generate the expected response for an authentication endpoint.
     # See https://sockudo.com/docs/channels/server_api/authorizing-users for details.
     #
@@ -444,42 +474,37 @@ module Sockudo
     def sync_http_client
       require 'httpclient'
 
-      @client ||= begin
-        HTTPClient.new(@http_proxy).tap do |c|
-          c.connect_timeout = @connect_timeout
-          c.send_timeout = @send_timeout
-          c.receive_timeout = @receive_timeout
-          c.keep_alive_timeout = @keep_alive_timeout
-        end
+      @sync_http_client ||= HTTPClient.new(@http_proxy).tap do |c|
+        c.connect_timeout = @connect_timeout
+        c.send_timeout = @send_timeout
+        c.receive_timeout = @receive_timeout
+        c.keep_alive_timeout = @keep_alive_timeout
       end
     end
 
     # @private Construct an em-http-request http client
     def em_http_client(uri)
-      begin
-        unless defined?(EventMachine) && EventMachine.reactor_running?
-          raise Error, "In order to use async calling you must be running inside an eventmachine loop"
-        end
-        require 'em-http' unless defined?(EventMachine::HttpRequest)
-
-        connection_opts = {
-          connect_timeout: @connect_timeout,
-          inactivity_timeout: @receive_timeout,
-        }
-
-        if defined?(@proxy)
-          proxy_opts = {
-            host: @proxy[:host],
-            port: @proxy[:port]
-          }
-          if @proxy[:user]
-            proxy_opts[:authorization] = [@proxy[:user], @proxy[:password]]
-          end
-          connection_opts[:proxy] = proxy_opts
-        end
-
-        EventMachine::HttpRequest.new(uri, connection_opts)
+      unless defined?(EventMachine) && EventMachine.reactor_running?
+        raise Error, 'In order to use async calling you must be running inside an eventmachine loop'
       end
+
+      require 'em-http' unless defined?(EventMachine::HttpRequest)
+
+      connection_opts = {
+        connect_timeout: @connect_timeout,
+        inactivity_timeout: @receive_timeout
+      }
+
+      if defined?(@proxy)
+        proxy_opts = {
+          host: @proxy[:host],
+          port: @proxy[:port]
+        }
+        proxy_opts[:authorization] = [@proxy[:user], @proxy[:password]] if @proxy[:user]
+        connection_opts[:proxy] = proxy_opts
+      end
+
+      EventMachine::HttpRequest.new(uri, connection_opts)
     end
 
     private
@@ -488,16 +513,19 @@ module Sockudo
 
     def inject_auto_idempotency_key(params)
       return params if params.key?(:idempotency_key) || !@auto_idempotency_key
+
       serial = (@publish_serial += 1)
       params.merge(idempotency_key: "#{@base_id}:#{serial}")
     end
 
     def inject_auto_idempotency_keys_batch!(events)
       return false unless @auto_idempotency_key
+
       serial = (@publish_serial += 1)
       injected = false
       events.each_with_index do |event, index|
         next if event.key?(:idempotency_key)
+
         event[:idempotency_key] = "#{@base_id}:#{serial}:#{index}"
         injected = true
       end
@@ -507,19 +535,15 @@ module Sockudo
     def post_with_retry(path, body, headers = {})
       last_error = nil
       @max_retries.times do |attempt|
-        begin
-          return post(path, body, headers)
-        rescue Sockudo::HTTPError => e
-          last_error = e
-          raise unless attempt < @max_retries - 1
-        rescue Sockudo::Error => e
-          if e.respond_to?(:status) && e.status.is_a?(Integer) && e.status >= 500 && e.status < 600
-            last_error = e
-            raise unless attempt < @max_retries - 1
-          else
-            raise
-          end
-        end
+        return post(path, body, headers)
+      rescue Sockudo::HTTPError => e
+        last_error = e
+        raise unless attempt < @max_retries - 1
+      rescue Sockudo::Error => e
+        raise unless e.respond_to?(:status) && e.status.is_a?(Integer) && e.status >= 500 && e.status < 600
+
+        last_error = e
+        raise unless attempt < @max_retries - 1
       end
       raise last_error
     end
@@ -528,18 +552,22 @@ module Sockudo
       channels = Array(channels).map(&:to_s)
       raise Sockudo::Error, "Too many channels (#{channels.length}), max 100" if channels.length > 100
 
-      encoded_data = if channels.any?{ |c| c.match(/^private-encrypted-/) } then
-        raise Sockudo::Error, "Cannot trigger to multiple channels if any are encrypted" if channels.length > 1
-        encrypt(channels[0], encode_data(data))
-      else
-        encode_data(data)
-      end
+      encoded_data = if channels.any? { |c| c.match(/^private-encrypted-/) }
+                       if channels.length > 1
+                         raise Sockudo::Error,
+                               'Cannot trigger to multiple channels if any are encrypted'
+                       end
+
+                       encrypt(channels[0], encode_data(data))
+                     else
+                       encode_data(data)
+                     end
 
       params.merge({
-        name: event_name,
-        channels: channels,
-        data: encoded_data,
-      })
+                     name: event_name,
+                     channels: channels,
+                     data: encoded_data
+                   })
     end
 
     def trigger_params_with_headers(channels, event_name, data, params)
@@ -558,11 +586,11 @@ module Sockudo
       {
         batch: events.map do |event|
           event.dup.tap do |e|
-            e[:data] = if e[:channel].match(/^private-encrypted-/) then
-              encrypt(e[:channel], encode_data(e[:data]))
-            else
-              encode_data(e[:data])
-            end
+            e[:data] = if e[:channel].match(/^private-encrypted-/)
+                         encrypt(e[:channel], encode_data(e[:data]))
+                       else
+                         encode_data(e[:data])
+                       end
           end
         end
       }
@@ -571,6 +599,7 @@ module Sockudo
     # JSON-encode the data if it's not a string
     def encode_data(data)
       return data if data.is_a? String
+
       MultiJson.encode(data)
     end
 
@@ -591,9 +620,9 @@ module Sockudo
       ciphertext = secret_box.encrypt(nonce, encoded_data)
 
       MultiJson.encode({
-        "nonce" => Base64::strict_encode64(nonce),
-        "ciphertext" => Base64::strict_encode64(ciphertext),
-      })
+                         'nonce' => Base64.strict_encode64(nonce),
+                         'ciphertext' => Base64.strict_encode64(ciphertext)
+                       })
     end
 
     def configured?
@@ -603,7 +632,7 @@ module Sockudo
     def require_rbnacl
       require 'rbnacl'
     rescue LoadError => e
-      $stderr.puts "You don't have rbnacl installed in your application. Please add it to your Gemfile and run bundle install"
+      warn "You don't have rbnacl installed in your application. Please add it to your Gemfile and run bundle install"
       raise e
     end
 
@@ -620,7 +649,7 @@ module Sockudo
     # @raise [Sockudo::Error] if socket_id or custom_string invalid
     #
     def authentication_string(socket_id, custom_string = nil)
-      string_to_sign = [socket_id, 'user', custom_string].compact.map(&:to_s).join('::')
+      string_to_sign = [socket_id, 'user', custom_string].compact.join('::')
 
       _authentication_string(socket_id, string_to_sign, authentication_token, string_to_sign)
     end

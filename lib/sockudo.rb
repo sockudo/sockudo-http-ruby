@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'logger'
 require 'securerandom'
 require 'uri'
@@ -10,8 +12,6 @@ require 'sockudo/client'
 # Used for configuring API credentials and creating Channel objects
 #
 module Sockudo
-  Signature = Pusher::Signature
-
   # All errors descend from this class so they can be easily rescued
   #
   # @example
@@ -22,11 +22,13 @@ module Sockudo
   #   end
   class Error < RuntimeError; end
   class AuthenticationError < Error; end
+
   class ConfigurationError < Error
     def initialize(key)
-      super "missing key `#{key}' in the client configuration"
+      super("missing key `#{key}' in the client configuration")
     end
   end
+
   class HTTPError < Error; attr_accessor :original_error; end
 
   # Alias Pusher::Signature into the Sockudo namespace so that request signing
@@ -43,10 +45,13 @@ module Sockudo
 
     def_delegators :default_client, :authentication_token, :url, :cluster
     def_delegators :default_client, :encrypted=, :url=, :cluster=
-    def_delegators :default_client, :timeout=, :connect_timeout=, :send_timeout=, :receive_timeout=, :keep_alive_timeout=
+    def_delegators :default_client, :timeout=, :connect_timeout=, :send_timeout=, :receive_timeout=,
+                   :keep_alive_timeout=
 
     def_delegators :default_client, :get, :get_async, :post, :post_async
     def_delegators :default_client, :channels, :channel_info, :channel_history, :channel_users
+    def_delegators :default_client, :get_message, :get_message_versions, :update_message,
+                   :delete_message, :append_message
     def_delegators :default_client, :trigger, :trigger_batch, :trigger_async, :trigger_batch_async
     def_delegators :default_client, :authenticate, :webhook, :channel, :[]
     def_delegators :default_client, :notify

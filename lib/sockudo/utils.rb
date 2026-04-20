@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 module Sockudo
   module Utils
     def validate_socket_id(socket_id)
-      unless socket_id && /\A\d+\.\d+\z/.match(socket_id)
-        raise Sockudo::Error, "Invalid socket ID #{socket_id.inspect}"
-      end
+      return if socket_id && /\A\d+\.\d+\z/.match(socket_id)
+
+      raise Sockudo::Error, "Invalid socket ID #{socket_id.inspect}"
     end
 
     # Compute authentication string required as part of the user authentication

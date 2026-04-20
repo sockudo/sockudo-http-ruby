@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'openssl'
 require 'multi_json'
 
@@ -5,7 +7,8 @@ module Sockudo
   # Delegates operations for a specific channel from a client
   class Channel
     attr_reader :name
-    INVALID_CHANNEL_REGEX = /[^A-Za-z0-9_\-=@,.;]/
+
+    INVALID_CHANNEL_REGEX = /[^A-Za-z0-9_\-=@,.;:]/.freeze
 
     def initialize(_, name, client = Sockudo)
       if Sockudo::Channel::INVALID_CHANNEL_REGEX.match(name)
@@ -13,6 +16,7 @@ module Sockudo
       elsif name.length > 200
         raise Sockudo::Error, "Channel name too long (limit 164 characters) '#{name}'"
       end
+
       @name = name
       @client = client
     end
@@ -95,7 +99,7 @@ module Sockudo
     # @raise [Sockudo::HTTPError] on any error raised inside http client - the original error is available in the original_error attribute
     #
     def info(attributes = [])
-      @client.channel_info(name, :info => attributes.join(','))
+      @client.channel_info(name, info: attributes.join(','))
     end
 
     # Request durable history for this channel.
@@ -128,6 +132,31 @@ module Sockudo
       @client.channel_presence_snapshot(name, params)
     end
 
+    # Fetch the latest visible version of a mutable message.
+    def get_message(message_serial)
+      @client.get_message(name, message_serial)
+    end
+
+    # Fetch preserved versions of a mutable message.
+    def get_message_versions(message_serial, params = {})
+      @client.get_message_versions(name, message_serial, params)
+    end
+
+    # Apply a mutable-message update.
+    def update_message(message_serial, params = {})
+      @client.update_message(name, message_serial, params)
+    end
+
+    # Apply a mutable-message delete.
+    def delete_message(message_serial, params = {})
+      @client.delete_message(name, message_serial, params)
+    end
+
+    # Apply a mutable-message append.
+    def append_message(message_serial, params = {})
+      @client.append_message(name, message_serial, params)
+    end
+
     # Request users for a presence channel
     # Only works on presence channels (see: http://sockudo.com/docs/client_api_guide/client_presence_channels and https://sockudo.com/docs/rest_api)
     #
@@ -156,7 +185,7 @@ module Sockudo
     # @raise [Sockudo::Error] if socket_id or custom_string invalid
     #
     def authentication_string(socket_id, custom_string = nil)
-      string_to_sign = [socket_id, name, custom_string].compact.map(&:to_s).join(':')
+      string_to_sign = [socket_id, name, custom_string].compact.join(':')
 
       _authentication_string(socket_id, string_to_sign, @client.authentication_token, custom_string)
     end
@@ -188,7 +217,7 @@ module Sockudo
     def authenticate(socket_id, custom_data = nil)
       custom_data = MultiJson.encode(custom_data) if custom_data
       auth = authentication_string(socket_id, custom_data)
-      r = {:auth => auth}
+      r = { auth: auth }
       r[:channel_data] = custom_data if custom_data
       r
     end
@@ -197,12 +226,10 @@ module Sockudo
       return unless encryption_master_key
 
       secret_string = @name + encryption_master_key
-      digest = OpenSSL::Digest::SHA256.new
+      digest = OpenSSL::Digest.new('SHA256')
       digest << secret_string
       digest.digest
     end
-
-    private
 
     include Sockudo::Utils
   end

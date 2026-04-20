@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'multi_json'
 require 'openssl'
 
@@ -33,7 +35,7 @@ module Sockudo
       # For Rack::Request and ActionDispatch::Request
       if request.respond_to?(:env) && request.respond_to?(:content_type)
         @key = request.env['HTTP_X_PUSHER_KEY']
-        @signature = request.env["HTTP_X_PUSHER_SIGNATURE"]
+        @signature = request.env['HTTP_X_PUSHER_SIGNATURE']
         @content_type = request.content_type
 
         request.body.rewind
@@ -49,25 +51,27 @@ module Sockudo
     # matches the configured key & secret. In the case that the webhook is
     # invalid, the reason is logged
     #
-    # @param extra_tokens [Hash] If you have extra tokens for your Sockudo app, you can specify them so that they're used to attempt validation.
+    # @param extra_tokens [Hash] If you have extra tokens for your Sockudo app, you can specify them
+    #   so that they're used to attempt validation.
     #
     def valid?(extra_tokens = nil)
-      extra_tokens = [extra_tokens] if extra_tokens.kind_of?(Hash)
+      extra_tokens = [extra_tokens] if extra_tokens.is_a?(Hash)
       if @key == @client.key
-        return check_signature(@client.secret)
+        return signature_valid?(@client.secret)
       elsif extra_tokens
         extra_tokens.each do |token|
-          return check_signature(token[:secret]) if @key == token[:key]
+          return signature_valid?(token[:secret]) if @key == token[:key]
         end
       end
+
       Sockudo.logger.warn "Received webhook with unknown key: #{key}"
-      return false
+      false
     end
 
     # Array of events (as Hashes) contained inside the webhook
     #
     def events
-      data["events"]
+      data['events']
     end
 
     # The time at which the WebHook was initially triggered by Sockudo, i.e.
@@ -76,35 +80,31 @@ module Sockudo
     # @return [Time]
     #
     def time
-      Time.at(data["time_ms"].to_f/1000)
+      Time.at(data['time_ms'].to_f / 1000)
     end
 
     # Access the parsed WebHook body
     #
     def data
-      @data ||= begin
-        case @content_type
-        when 'application/json'
-          MultiJson.decode(@body)
-        else
-          raise "Unknown Content-Type (#{@content_type})"
-        end
-      end
+      @data ||= case @content_type
+                when 'application/json'
+                  MultiJson.decode(@body)
+                else
+                  raise "Unknown Content-Type (#{@content_type})"
+                end
     end
 
     private
 
     # Checks signature against secret and returns boolean
     #
-    def check_signature(secret)
-      digest = OpenSSL::Digest::SHA256.new
+    def signature_valid?(secret)
+      digest = OpenSSL::Digest.new('SHA256')
       expected = OpenSSL::HMAC.hexdigest(digest, secret, @body)
-      if @signature == expected
-        return true
-      else
-        Sockudo.logger.warn "Received WebHook with invalid signature: got #{@signature}, expected #{expected}"
-        return false
-      end
+      return true if @signature == expected
+
+      Sockudo.logger.warn "Received WebHook with invalid signature: got #{@signature}, expected #{expected}"
+      false
     end
   end
 end

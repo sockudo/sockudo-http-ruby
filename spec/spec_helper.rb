@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 begin
   require 'bundler/setup'
 rescue LoadError
   puts 'although not required, it is recommended that you use bundler when running the tests'
 end
 
-ENV['SOCKUDO_URL']= 'http://some:secret@api.secret.localhost:441/apps/54'
+ENV['SOCKUDO_URL'] = 'http://some:secret@api.secret.localhost:441/apps/54'
 
 require 'rspec'
 require 'em-http' # As of webmock 1.4.0, em-http must be loaded first
@@ -21,6 +23,6 @@ RSpec.configure do |config|
 end
 
 def hmac(key, data)
-  digest = OpenSSL::Digest::SHA256.new
+  digest = OpenSSL::Digest.new('SHA256')
   OpenSSL::HMAC.hexdigest(digest, key, data)
 end
