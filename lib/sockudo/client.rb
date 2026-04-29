@@ -201,6 +201,12 @@ module Sockudo
       resource(path).post(params, headers)
     end
 
+    # DELETE arbitrary REST API resource using a synchronous http client.
+    # All request signing is handled automatically.
+    def delete(path, params = {})
+      resource(path).delete(params)
+    end
+
     # POST arbitrary REST API resource using an asynchronous http client.
     # Works identially to get_async method, but posts params as JSON in post
     # body.
@@ -334,6 +340,21 @@ module Sockudo
     # Apply a mutable-message append
     def append_message(channel_name, message_serial, params = {})
       post("/channels/#{channel_name}/messages/#{message_serial}/append", params)
+    end
+
+    # Publish an annotation for a versioned message
+    def publish_annotation(channel_name, message_serial, params = {})
+      post("/channels/#{channel_name}/messages/#{message_serial}/annotations", params)
+    end
+
+    # Delete an annotation from a versioned message
+    def delete_annotation(channel_name, message_serial, annotation_serial, params = {})
+      delete("/channels/#{channel_name}/messages/#{message_serial}/annotations/#{annotation_serial}", params)
+    end
+
+    # List raw annotation events for a versioned message
+    def list_annotations(channel_name, message_serial, params = {})
+      get("/channels/#{channel_name}/messages/#{message_serial}/annotations", params)
     end
 
     # Request info for users of a presence channel
