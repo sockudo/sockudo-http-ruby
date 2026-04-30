@@ -59,6 +59,10 @@ module Sockudo
                  http_client.get({
                                    query: @params, head: @head
                                  })
+               when :delete
+                 http_client.delete({
+                                      query: @params, head: @head
+                                    })
                else
                  raise 'Unsupported verb'
                end

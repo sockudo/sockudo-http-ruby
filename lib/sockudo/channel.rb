@@ -157,6 +157,21 @@ module Sockudo
       @client.append_message(name, message_serial, params)
     end
 
+    # Publish an annotation for a versioned message.
+    def publish_annotation(message_serial, params = {})
+      @client.publish_annotation(name, message_serial, params)
+    end
+
+    # Delete an annotation from a versioned message.
+    def delete_annotation(message_serial, annotation_serial, params = {})
+      @client.delete_annotation(name, message_serial, annotation_serial, params)
+    end
+
+    # List raw annotation events for a versioned message.
+    def list_annotations(message_serial, params = {})
+      @client.list_annotations(name, message_serial, params)
+    end
+
     # Request users for a presence channel
     # Only works on presence channels (see: http://sockudo.com/docs/client_api_guide/client_presence_channels and https://sockudo.com/docs/rest_api)
     #

@@ -25,6 +25,10 @@ module Sockudo
       create_request(:post, {}, body, headers).send_async
     end
 
+    def delete(params)
+      create_request(:delete, params).send_sync
+    end
+
     private
 
     def create_request(verb, params, body = nil, extra_headers = {})
