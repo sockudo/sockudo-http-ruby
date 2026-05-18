@@ -48,6 +48,14 @@ module Sockudo
     def_delegators :default_client, :channels, :channel_info, :channel_history, :channel_users
     def_delegators :default_client, :get_message, :get_message_versions, :update_message,
                    :delete_message, :append_message
+    def_delegators :default_client, :activate_device, :create_device_activation, :update_device_registration,
+                   :list_device_registrations, :get_device_registration, :delete_device_registration,
+                   :remove_device_registrations_by_client, :upsert_channel_push_subscription,
+                   :list_channel_push_subscriptions, :delete_channel_push_subscriptions,
+                   :list_channel_push_subscription_channels, :list_push_credentials,
+                   :put_push_credential, :publish_push, :publish_push_direct, :publish_push_batch,
+                   :schedule_push, :get_publish_status, :cancel_scheduled_push,
+                   :post_push_delivery_status
     def_delegators :default_client, :trigger, :trigger_batch, :trigger_async, :trigger_batch_async
     def_delegators :default_client, :authenticate, :webhook, :channel, :[]
     def_delegators :default_client, :notify

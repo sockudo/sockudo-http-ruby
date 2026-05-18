@@ -366,6 +366,132 @@ describe Sockudo do
         end
       end
 
+      describe '#activate_device' do
+        it 'uses the admin endpoint, accepts 201, and can request token rotation' do
+          api_path = %r{/apps/20/push/deviceRegistrations}
+          stub_request(:post, api_path).to_return({
+                                                    status: 201,
+                                                    body: MultiJson.encode({
+                                                                             'change' => 'inserted',
+                                                                             'deviceIdentityToken' => 'identity'
+                                                                           })
+                                                  })
+
+          expect(@client.activate_device({
+                                           id: 'device-1',
+                                           formFactor: 'phone',
+                                           platform: 'android'
+                                         }, rotate_device_identity_token: true)).to eq({
+                                                                                           change: 'inserted',
+                                                                                           deviceIdentityToken: 'identity'
+                                                                                         })
+
+          expect(WebMock).to(have_requested(:post, api_path).with do |req|
+            parsed = MultiJson.decode(req.body)
+            expect(parsed['id']).to eq('device-1')
+            expect(req.headers['X-Sockudo-Push-Capability']).to eq('push-admin')
+            expect(req.headers['X-Sockudo-Rotate-Device-Identity-Token']).to eq('true')
+          end)
+        end
+      end
+
+      describe '#list_device_registrations' do
+        it 'passes cursor pagination and admin capability' do
+          api_path = %r{/apps/20/push/deviceRegistrations}
+          stub_request(:get, api_path).to_return({
+                                                   status: 200,
+                                                   body: MultiJson.encode({
+                                                                            'items' => [],
+                                                                            'has_more' => false,
+                                                                            'next_cursor' => nil
+                                                                          })
+                                                 })
+
+          expect(@client.list_device_registrations(limit: 10, cursor: 'c1')).to eq({
+                                                                                      items: [],
+                                                                                      has_more: false,
+                                                                                      next_cursor: nil
+                                                                                    })
+
+          expect(WebMock).to(have_requested(:get, api_path).with do |req|
+            expect(req.uri.query).to include('limit=10')
+            expect(req.uri.query).to include('cursor=c1')
+            expect(req.headers['X-Sockudo-Push-Capability']).to eq('push-admin')
+          end)
+        end
+      end
+
+      describe '#list_channel_push_subscriptions' do
+        it 'passes push-subscribe capability and device identity token' do
+          api_path = %r{/apps/20/push/channelSubscriptions}
+          stub_request(:get, api_path).to_return({
+                                                   status: 200,
+                                                   body: MultiJson.encode({
+                                                                            'items' => [],
+                                                                            'has_more' => false,
+                                                                            'next_cursor' => nil
+                                                                          })
+                                                 })
+
+          expect(@client.list_channel_push_subscriptions({
+                                                           deviceId: 'device-1',
+                                                           limit: 5
+                                                         }, 'identity')).to eq({
+                                                                                 items: [],
+                                                                                 has_more: false,
+                                                                                 next_cursor: nil
+                                                                               })
+
+          expect(WebMock).to(have_requested(:get, api_path).with do |req|
+            expect(req.uri.query).to include('deviceId=device-1')
+            expect(req.uri.query).not_to include('deviceid=device-1')
+            expect(req.uri.query).to include('limit=5')
+            expect(req.headers['X-Sockudo-Push-Capability']).to eq('push-subscribe')
+            expect(req.headers['X-Sockudo-Device-Identity-Token']).to eq('identity')
+          end)
+        end
+      end
+
+      describe '#publish_push' do
+        it 'defaults sync to false and accepts 202 publish responses' do
+          api_path = %r{/apps/20/push/publish}
+          stub_request(:post, api_path).to_return({
+                                                    status: 202,
+                                                    body: MultiJson.encode({
+                                                                             'publish_id' => 'pub_123',
+                                                                             'status' => 'queued'
+                                                                           })
+                                                  })
+
+          expect(@client.publish_push({
+                                        recipients: [{ type: 'channel', channel: 'orders' }],
+                                        payload: { title: 'Order', body: 'Updated' },
+                                        providerOverrides: [{ provider: 'fcm', payload: { android: {} } }]
+                                      })).to eq({
+                                                  publish_id: 'pub_123',
+                                                  status: 'queued'
+                                                })
+
+          expect(WebMock).to(have_requested(:post, api_path).with do |req|
+            parsed = MultiJson.decode(req.body)
+            expect(parsed['sync']).to eq(false)
+            expect(parsed['providerOverrides'][0]['provider']).to eq('fcm')
+            expect(req.headers['X-Sockudo-Push-Capability']).to eq('push-admin')
+          end)
+        end
+      end
+
+      describe '#schedule_push' do
+        it 'requires notBeforeMs' do
+          expect do
+            @client.schedule_push(
+              recipients: [{ type: 'channel', channel: 'orders' }],
+              payload: { title: 'Order' }
+            )
+          end.to raise_error(Sockudo::Error, 'scheduled push requires notBeforeMs')
+        end
+      end
+
       describe '#authenticate' do
         before :each do
           @custom_data = { uid: 123, info: { name: 'Foo' } }
@@ -430,7 +556,7 @@ describe Sockudo do
 
         it 'should not allow too many channels' do
           expect do
-            @client.trigger((0..101).map { |_i| "mychannel#{i}" },
+            @client.trigger((0..101).map { |i| "mychannel#{i}" },
                             'event', { 'some' => 'data' }, {
                               socket_id: '12.34'
                             })

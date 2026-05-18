@@ -7,12 +7,12 @@ module Sockudo
       @path = path
     end
 
-    def get(params)
-      create_request(:get, params).send_sync
+    def get(params, headers = {})
+      create_request(:get, params, nil, headers).send_sync
     end
 
-    def get_async(params)
-      create_request(:get, params).send_async
+    def get_async(params, headers = {})
+      create_request(:get, params, nil, headers).send_async
     end
 
     def post(params, headers = {})
@@ -25,8 +25,8 @@ module Sockudo
       create_request(:post, {}, body, headers).send_async
     end
 
-    def delete(params)
-      create_request(:delete, params).send_sync
+    def delete(params, headers = {})
+      create_request(:delete, params, nil, headers).send_sync
     end
 
     private

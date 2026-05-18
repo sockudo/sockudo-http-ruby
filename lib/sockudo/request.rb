@@ -3,6 +3,7 @@
 require 'pusher-signature'
 require 'digest/md5'
 require 'multi_json'
+require 'openssl'
 
 module Sockudo
   class Request
@@ -18,14 +19,13 @@ module Sockudo
       @head.merge!(extra_headers) if extra_headers && !extra_headers.empty?
 
       @body = body
+      params = params.each_with_object({}) { |(key, value), result| result[key.to_s] = value }
       if body
-        params[:body_md5] = Digest::MD5.hexdigest(body)
+        params['body_md5'] = Digest::MD5.hexdigest(body)
         @head['Content-Type'] = 'application/json'
       end
 
-      request = Pusher::Signature::Request.new(verb.to_s.upcase, uri.path, params)
-      request.sign(client.authentication_token)
-      @params = request.signed_params
+      @params = signed_params(params)
     end
 
     def send_sync
@@ -87,12 +87,29 @@ module Sockudo
 
     private
 
+    def signed_params(params)
+      @client.authentication_token
+      params = params.merge({
+                              'auth_key' => @client.key,
+                              'auth_timestamp' => Time.now.to_i.to_s,
+                              'auth_version' => '1.0'
+                            })
+      params_for_signing = params.each_with_object({}) do |(key, value), result|
+        result[key.downcase] = value
+      end
+      canonical_query = params_for_signing.sort.map { |key, value| "#{key}=#{value}" }.join('&')
+      string_to_sign = [@verb.to_s.upcase, @uri.path, canonical_query].join("\n")
+      params.merge('auth_signature' => OpenSSL::HMAC.hexdigest('sha256', @client.secret, string_to_sign))
+    end
+
     def handle_response(status_code, body)
       case status_code
-      when 200
+      when 200, 201
         symbolize_first_level(MultiJson.decode(body))
       when 202
         body.empty? || symbolize_first_level(MultiJson.decode(body))
+      when 204
+        {}
       when 400
         raise Error, "Bad request: #{body}"
       when 401

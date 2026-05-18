@@ -175,8 +175,8 @@ module Sockudo
     # @raise [Sockudo::Error] Unsuccessful response - see the error message
     # @raise [Sockudo::HTTPError] Error raised inside http client. The original error is wrapped in error.original_error
     #
-    def get(path, params = {})
-      resource(path).get(params)
+    def get(path, params = {}, headers = {})
+      resource(path).get(params, headers)
     end
 
     # GET arbitrary REST API resource using an asynchronous http client.
@@ -191,8 +191,8 @@ module Sockudo
     #
     # @return Either an EM::DefaultDeferrable or a HTTPClient::Connection
     #
-    def get_async(path, params = {})
-      resource(path).get_async(params)
+    def get_async(path, params = {}, headers = {})
+      resource(path).get_async(params, headers)
     end
 
     # POST arbitrary REST API resource using a synchronous http client.
@@ -203,8 +203,8 @@ module Sockudo
 
     # DELETE arbitrary REST API resource using a synchronous http client.
     # All request signing is handled automatically.
-    def delete(path, params = {})
-      resource(path).delete(params)
+    def delete(path, params = {}, headers = {})
+      resource(path).delete(params, headers)
     end
 
     # POST arbitrary REST API resource using an asynchronous http client.
@@ -371,6 +371,113 @@ module Sockudo
     #
     def channel_users(channel_name, params = {})
       get("/channels/#{channel_name}/users", params)
+    end
+
+    # Activate or create a push device registration with admin scope
+    def activate_device(device, options = {})
+      post(push_path('/deviceRegistrations'), device, push_headers('push-admin', nil, options[:rotate_device_identity_token]))
+    end
+
+    # Alias of activate_device
+    def create_device_activation(device, options = {})
+      activate_device(device, options)
+    end
+
+    # Update a push device registration with push-subscribe scope
+    def update_device_registration(device, device_identity_token)
+      post(push_path('/deviceRegistrations'), device, push_headers('push-subscribe', device_identity_token))
+    end
+
+    # List push device registrations with cursor pagination
+    def list_device_registrations(params = {})
+      get(push_path('/deviceRegistrations'), params, push_headers('push-admin'))
+    end
+
+    # Get a push device registration
+    def get_device_registration(device_id, device_identity_token = nil)
+      capability = device_identity_token ? 'push-subscribe' : 'push-admin'
+      get(push_path("/deviceRegistrations/#{device_id}"), {}, push_headers(capability, device_identity_token))
+    end
+
+    # Delete a push device registration
+    def delete_device_registration(device_id, device_identity_token = nil)
+      capability = device_identity_token ? 'push-subscribe' : 'push-admin'
+      delete(push_path("/deviceRegistrations/#{device_id}"), {}, push_headers(capability, device_identity_token))
+    end
+
+    # Delete all device registrations for a client identifier
+    def remove_device_registrations_by_client(client_id)
+      delete(push_path('/deviceRegistrations'), { clientId: client_id }, push_headers('push-admin'))
+    end
+
+    # Upsert a push channel subscription
+    def upsert_channel_push_subscription(subscription, device_identity_token = nil)
+      capability = device_identity_token ? 'push-subscribe' : 'push-admin'
+      post(push_path('/channelSubscriptions'), subscription, push_headers(capability, device_identity_token))
+    end
+
+    # List push channel subscriptions with cursor pagination
+    def list_channel_push_subscriptions(params = {}, device_identity_token = nil)
+      capability = device_identity_token ? 'push-subscribe' : 'push-admin'
+      get(push_path('/channelSubscriptions'), params, push_headers(capability, device_identity_token))
+    end
+
+    # Delete push channel subscriptions
+    def delete_channel_push_subscriptions(params = {}, device_identity_token = nil)
+      capability = device_identity_token ? 'push-subscribe' : 'push-admin'
+      delete(push_path('/channelSubscriptions'), params, push_headers(capability, device_identity_token))
+    end
+
+    # List subscribed channels with cursor pagination
+    def list_channel_push_subscription_channels(params = {})
+      get(push_path('/channelSubscriptions/channels'), params, push_headers('push-admin'))
+    end
+
+    # List stored push provider credentials with cursor pagination
+    def list_push_credentials(params = {})
+      get(push_path('/credentials'), params, push_headers('push-admin'))
+    end
+
+    # Store or update a provider credential payload
+    def put_push_credential(provider, credential)
+      post(push_path("/credentials/#{provider}"), credential, push_headers('push-admin'))
+    end
+
+    # Publish push asynchronously by default
+    def publish_push(request)
+      post(push_path('/publish'), request.merge(sync: false), push_headers('push-admin'))
+    end
+
+    # Alias of publish_push
+    def publish_push_direct(request)
+      publish_push(request)
+    end
+
+    # Publish a batch of push notifications asynchronously by default
+    def publish_push_batch(requests)
+      post(push_path('/batch/publish'), requests.map { |request| request.merge(sync: false) }, push_headers('push-admin'))
+    end
+
+    # Schedule a push publish; requires notBeforeMs in the request
+    def schedule_push(request)
+      raise Sockudo::Error, 'scheduled push requires notBeforeMs' unless request.key?(:notBeforeMs) || request.key?('notBeforeMs')
+
+      publish_push(request)
+    end
+
+    # Get the status for a publish id
+    def get_publish_status(publish_id)
+      get(push_path("/publish/#{publish_id}/status"), {}, push_headers('push-admin'))
+    end
+
+    # Cancel a scheduled publish
+    def cancel_scheduled_push(publish_id)
+      delete(push_path("/scheduled/#{publish_id}"), {}, push_headers('push-admin'))
+    end
+
+    # Submit a provider delivery status event
+    def post_push_delivery_status(event)
+      post(push_path('/deliveryStatus'), event, push_headers('push-admin'))
     end
 
     # Trigger an event on one or more channels
@@ -683,6 +790,17 @@ module Sockudo
 
     def user_data_valid?(data)
       data.is_a?(Hash) && data.key?(:id) && !data[:id].empty? && data[:id].is_a?(String)
+    end
+
+    def push_headers(capability = 'push-admin', device_identity_token = nil, rotate_device_identity_token = false)
+      headers = { 'X-Sockudo-Push-Capability' => capability }
+      headers['X-Sockudo-Device-Identity-Token'] = device_identity_token if device_identity_token
+      headers['X-Sockudo-Rotate-Device-Identity-Token'] = 'true' if rotate_device_identity_token
+      headers
+    end
+
+    def push_path(path)
+      "/push#{path}"
     end
   end
 end
